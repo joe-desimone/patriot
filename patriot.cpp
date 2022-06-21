@@ -144,9 +144,6 @@ Cleanup:
 
 int main()
 {
-	CONTEXT ctx;
-	RtlCaptureContext(&ctx);
-	
 	printf("Patriot memory scanner %s\n", PATRIOT_VERSION);
 	printf("[+] Scanning..\n");
 	EnumProcess();
