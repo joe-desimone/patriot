@@ -3,6 +3,8 @@ Small research project for detecting various kinds of in-memory stealth techniqu
 
 For the v0.1 release, we detect [Ekko](https://github.com/Cracked5pider/Ekko) by searching memory for timers which point to NtContinue. Hat tip to [Austin Hudson](https://twitter.com/ilove2pwn_) for his excellent [research](https://suspicious.actor/2022/05/05/mdsec-nighthawk-study.html) on the topic.
 
+Version v0.2 adds a capability for identifying suspicious CONTEXT structures. These are used in ROP chains to modify memory region protections. 
+
 Future improvements should include optimizations to reduce scan time, enumerate thread pool timers, apc's, and check for things like RtlRestoreContext as well.
 
 ![image](https://user-images.githubusercontent.com/56411054/174499879-ea784efa-ba08-454e-9028-3781547c32f5.png)
