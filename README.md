@@ -10,4 +10,4 @@ Future improvements should include optimizations to reduce scan time, enumerate 
 ![image](https://user-images.githubusercontent.com/56411054/174499879-ea784efa-ba08-454e-9028-3781547c32f5.png)
 
 # Release
-Download the [latest](https://github.com/joe-desimone/patriot/releases/tag/v0.1)
+Download the [latest](https://github.com/joe-desimone/patriot/releases/tag/v0.2)
