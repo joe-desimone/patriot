@@ -2,11 +2,12 @@
 #include <TlHelp32.h>
 #include <stdio.h>
 
+char PATRIOT_VERSION[] = "v0.2";
 
 void* memmem(const void* haystack, size_t haystack_len,
 	const void* const needle, const size_t needle_len)
 {
-	//https://stackoverflow.com/questions/52988769/writing-own-memmem-for-windows
+	// https://stackoverflow.com/questions/52988769/writing-own-memmem-for-windows
 	if (haystack == NULL) return NULL; // or assert(haystack != NULL);
 	if (haystack_len == 0) return NULL;
 	if (needle == NULL) return NULL; // or assert(needle != NULL);
@@ -22,23 +23,28 @@ void* memmem(const void* haystack, size_t haystack_len,
 	return NULL;
 }
 
-bool ScanMem(void* pBuf, SIZE_T szBuf)
+bool FindTimerCallback(void* pBuf, SIZE_T szBuf, const wchar_t * dllName, const char * functionName)
 {
-	void* ntContinue = GetProcAddress(GetModuleHandle(L"ntdll.dll"), "NtContinue");
-	char search[5 * 8] = {0};
+	if (szBuf < 24)
+	{
+		return false;
+	}
+
+	void* pFunction = GetProcAddress(GetModuleHandle(dllName), functionName);
+	char search[3 * 8] = {0};
 	DWORD i = 0;
 
 	memcpy(&search[i], "\x00\x00\x00\x00\x00\x00\x00\x00", 8);
 	i += 8;
 	memcpy(&search[i], "\x20\x00\x00\x00\x00\x00\x00\x00", 8);
 	i += 8;
-	memcpy(&search[i], &ntContinue, 8);
+	memcpy(&search[i], &pFunction, 8);
 	i += 8;
-
 	if (memmem(pBuf, szBuf, search, i))
 	{
 		return true;
 	}
+
 	return false;
 
 }
@@ -67,7 +73,8 @@ void * ScanProc(DWORD pid)
 		pMem += mbi.RegionSize;
 
 		if (mbi.State != MEM_COMMIT || mbi.Protect != PAGE_READWRITE 
-			|| mbi.RegionSize > 1024*1024*50)
+			|| mbi.RegionSize > 1024*1024*50
+			|| mbi.Type != MEM_PRIVATE)
 		{
 			continue;
 		}
@@ -82,7 +89,8 @@ void * ScanProc(DWORD pid)
 
 		//printf("Scanning pid: %d, region: %p\n", pid, mbi.BaseAddress);
 
-		if (ScanMem(pBuf, mbi.RegionSize))
+		if (FindTimerCallback(pBuf, mbi.RegionSize, L"ntdll.dll", "NtContinue") ||
+			FindTimerCallback(pBuf, mbi.RegionSize, L"ntdll.dll", "RtlRestoreContext"))
 		{
 			free(pBuf);
 			return mbi.BaseAddress;
@@ -97,18 +105,23 @@ void * ScanProc(DWORD pid)
 
 void EnumProcess()
 {
-	HANDLE Snap;
+	HANDLE hSnap = INVALID_HANDLE_VALUE;
 	PROCESSENTRY32 proc32;
 
-	Snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-	if (Snap == INVALID_HANDLE_VALUE)
+	hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+	if (hSnap == INVALID_HANDLE_VALUE)
 	{
-		return;
+		goto Cleanup;
 	}
 
 	proc32.dwSize = sizeof(PROCESSENTRY32);
 
-	while ((Process32Next(Snap, &proc32)) == TRUE)
+	if (!Process32First(hSnap, &proc32))
+	{
+		goto Cleanup;
+	}
+
+	do
 	{
 		if (GetCurrentProcessId() == proc32.th32ProcessID)
 			continue;
@@ -119,16 +132,22 @@ void EnumProcess()
 			printf("[!] Suspicious timer found in process: %ws, pid: %d, region: %p\n", 
 				proc32.szExeFile, proc32.th32ProcessID, pRegion);
 		}
-	}
+	} while ((Process32Next(hSnap, &proc32)) == TRUE);
 
-	CloseHandle(Snap);
+Cleanup:
+
+	if(hSnap != INVALID_HANDLE_VALUE)
+		CloseHandle(hSnap);
 
 	return;
 }
 
 int main()
 {
-	printf("Patriot memory scanner v0.1\n");
+	CONTEXT ctx;
+	RtlCaptureContext(&ctx);
+	
+	printf("Patriot memory scanner %s\n", PATRIOT_VERSION);
 	printf("[+] Scanning..\n");
 	EnumProcess();
 	printf("[+] Scan complete.\n");
