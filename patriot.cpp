@@ -49,7 +49,75 @@ bool FindTimerCallback(void* pBuf, SIZE_T szBuf, const wchar_t * dllName, const 
 
 }
 
-void * ScanProc(DWORD pid)
+bool inline VirtualProtectFunction(void** functions, int count, DWORD64 function)
+{
+    for (int i = 0; i < count; i++)
+    {
+        if (functions[i] == (void*)function)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+bool inline
+IsExecuteSet(DWORD protect)
+{
+    if ((protect == PAGE_EXECUTE) || (protect == PAGE_EXECUTE_READ) ||
+        (protect == PAGE_EXECUTE_READWRITE) || (protect == PAGE_EXECUTE_WRITECOPY))
+    {
+        return true;
+    }
+
+    return false;
+}
+
+bool FindSuspiciousContext(DWORD pid, wchar_t * exeName, void* pBuf, SIZE_T szBuf)
+{
+    if (szBuf < sizeof(CONTEXT))
+    {
+        return false;
+    }
+
+    CONTEXT * pCtx;
+
+    void* functions[10];
+    functions[0] = GetProcAddress(GetModuleHandle(L"ntdll.dll"), "NtProtectVirtualMemory");
+    functions[1] = GetProcAddress(GetModuleHandle(L"kernel32.dll"), "VirtualProtect");
+    functions[2] = GetProcAddress(GetModuleHandle(L"kernel32.dll"), "VirtualProtectEx");
+    functions[3] = GetProcAddress(GetModuleHandle(L"kernelbase.dll"), "VirtualProtect");
+    functions[4] = GetProcAddress(GetModuleHandle(L"kernelbase.dll"), "VirtualProtectEx");
+    int count = 5;
+
+    for (int i = 0; i < szBuf - sizeof(CONTEXT); i += 8)
+    {
+        char* pcBuf = (char*)pBuf;
+        pCtx = (CONTEXT*)&pcBuf[i];
+        if ((pCtx->ContextFlags & CONTEXT_CONTROL) &&
+            virtual_protect_function(functions, count, pCtx->Rip) &&
+            (IsExecuteSet(pCtx->R8) || IsExecuteSet(pCtx->R9))
+            )
+        {
+            DWORD64 target = 0;
+            if (pCtx->Rcx == (DWORD64)-1)
+                target = pCtx->Rdx;
+            else
+                target = pCtx->Rcx;
+
+            printf("[!] Suspicious context found in PID: %d, Process: %ws, Target memory: %llx\n", pid, exeName, target);
+            //printf("Parameters:\n");
+            //printf("RIP: %llx\n", pCtx->Rip);
+            //printf("RCX: %llx\n", pCtx->Rcx);
+            //printf("RDX: %llx\n", pCtx->Rdx);
+            //printf("R8: %llx\n", pCtx->R8);
+            //printf("R9: %llx\n", pCtx->R9);
+        }
+    }
+    return false;
+}
+
+void * ScanProc(DWORD pid, wchar_t * exeName)
 {
     HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid);
     if (0 == hProcess)
@@ -88,9 +156,11 @@ void * ScanProc(DWORD pid)
         }
 
         //printf("Scanning pid: %d, region: %p\n", pid, mbi.BaseAddress);
+        FindSuspiciousContext(pid, exeName, pBuf, mbi.RegionSize);
 
         if (FindTimerCallback(pBuf, mbi.RegionSize, L"ntdll.dll", "NtContinue") ||
-            FindTimerCallback(pBuf, mbi.RegionSize, L"ntdll.dll", "RtlRestoreContext"))
+            FindTimerCallback(pBuf, mbi.RegionSize, L"ntdll.dll", "RtlRestoreContext")
+            )
         {
             free(pBuf);
             return mbi.BaseAddress;
@@ -126,7 +196,7 @@ void EnumProcess()
         if (GetCurrentProcessId() == proc32.th32ProcessID)
             continue;
 
-        void * pRegion = ScanProc(proc32.th32ProcessID);
+        void * pRegion = ScanProc(proc32.th32ProcessID, proc32.szExeFile);
         if (pRegion)
         {
             printf("[!] Suspicious timer found in process: %ws, pid: %d, region: %p\n", 
