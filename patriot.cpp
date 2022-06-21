@@ -95,7 +95,7 @@ bool FindSuspiciousContext(DWORD pid, wchar_t * exeName, void* pBuf, SIZE_T szBu
         char* pcBuf = (char*)pBuf;
         pCtx = (CONTEXT*)&pcBuf[i];
         if ((pCtx->ContextFlags & CONTEXT_CONTROL) &&
-            virtual_protect_function(functions, count, pCtx->Rip) &&
+            VirtualProtectFunction(functions, count, pCtx->Rip) &&
             (IsExecuteSet(pCtx->R8) || IsExecuteSet(pCtx->R9))
             )
         {
