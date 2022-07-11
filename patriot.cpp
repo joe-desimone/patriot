@@ -25,7 +25,8 @@ void Log(LOG_LEVEL level, const char* fmt, ...)
     va_end(va);
 }
 
-//bool FindTimerCallback(void* pBuf, SIZE_T szBuf, const wchar_t* dllName, const char* functionName)
+// bool FindTimerCallback(void* pBuf, SIZE_T szBuf, const wchar_t* dllName, const char*
+// functionName)
 //{
 //    if (szBuf < 24)
 //    {
@@ -246,7 +247,8 @@ bool UnsharedSize(HANDLE hProcess, void* regionBase, SIZE_T regionSize, SIZE_T& 
         pInfo[i].VirtualAddress = (void*)((DWORD_PTR)regionBase + (i * 0x1000));
     }
 
-    if (!QueryWorkingSetEx(hProcess, pInfo, (DWORD)(pages * sizeof(PSAPI_WORKING_SET_EX_INFORMATION))))
+    if (!QueryWorkingSetEx(hProcess, pInfo,
+                           (DWORD)(pages * sizeof(PSAPI_WORKING_SET_EX_INFORMATION))))
     {
         printf("[!] QueryWorkingSet failed: %d\n", GetLastError());
         CleanupError();
