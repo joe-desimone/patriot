@@ -71,12 +71,10 @@ static bool inline VirtualProtectFunction(void** functions, int count, DWORD64 f
 
 static bool inline IsExecuteSet(DWORD protect)
 {
-    if ((protect == PAGE_EXECUTE) || (protect == PAGE_EXECUTE_READ) ||
-        (protect == PAGE_EXECUTE_READWRITE) || (protect == PAGE_EXECUTE_WRITECOPY))
+    if( protect & 0xF0 )
     {
         return true;
     }
-
     return false;
 }
 
